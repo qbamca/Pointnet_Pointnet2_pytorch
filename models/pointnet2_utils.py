@@ -3,6 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from time import time
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def timeit(tag, t):
     print("{}: {}s".format(tag, time() - t))
