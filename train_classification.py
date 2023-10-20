@@ -27,10 +27,11 @@ def parse_args():
     '''PARAMETERS'''
     parser = argparse.ArgumentParser('training')
     parser.add_argument('--use_cpu', action='store_true', default=False, help='use cpu mode')
+    parser.add_argument('--dataset', type=str, default=None, help='dataset name')
     parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
     parser.add_argument('--batch_size', type=int, default=24, help='batch size in training')
     parser.add_argument('--model', default='pointnet_cls', help='model name [default: pointnet_cls]')
-    parser.add_argument('--num_category', default=40, type=int,  help='training on ModelNet10/40')
+    parser.add_argument('--num_category', default=40, type=int,  help='category count [default: 40]')
     parser.add_argument('--epoch', default=200, type=int, help='number of epoch in training')
     parser.add_argument('--learning_rate', default=0.001, type=float, help='learning rate in training')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number')
@@ -116,7 +117,7 @@ def main(args):
 
     '''DATA LOADING'''
     log_string('Load dataset ...')
-    data_path = 'data/normal_resampled/'
+    data_path = os.path.join(ROOT_DIR, 'data', args.dataset)
 
     train_dataset = ModelNetDataLoader(root=data_path, args=args, split='train', process_data=args.process_data)
     test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=args.process_data)
@@ -127,7 +128,8 @@ def main(args):
     num_class = args.num_category
     model = importlib.import_module(args.model)
     shutil.copy('./models/%s.py' % args.model, str(exp_dir))
-    shutil.copy('models/pointnet2_utils.py', str(exp_dir))
+    utils_path = os.path.join(ROOT_DIR, 'models', 'pointnet2_utils.py') if args.model != 'pointnet_cls' else os.path.join(ROOT_DIR, 'models', 'pointnet_utils.py')
+    shutil.copy(utils_path, str(exp_dir))
     shutil.copy('./train_classification.py', str(exp_dir))
 
     classifier = model.get_model(num_class, normal_channel=args.use_normals)
@@ -209,6 +211,18 @@ def main(args):
                 best_class_acc = class_acc
             log_string('Test Instance Accuracy: %f, Class Accuracy: %f' % (instance_acc, class_acc))
             log_string('Best Instance Accuracy: %f, Class Accuracy: %f' % (best_instance_acc, best_class_acc))
+
+            logger.info('Save intermediate model...')
+            savepath = str(checkpoints_dir) + f'/model_epoch_{epoch + 1}.pth'
+            log_string('Saving at %s' % savepath)
+            state = {
+                'epoch': best_epoch,
+                'instance_acc': instance_acc,
+                'class_acc': class_acc,
+                'model_state_dict': classifier.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }
+            torch.save(state, savepath)
 
             if (instance_acc >= best_instance_acc):
                 logger.info('Save model...')
